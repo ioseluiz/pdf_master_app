@@ -160,3 +160,21 @@ class DraggableListWidget(QListWidget):
         # E. Scroll al destino
         if insert_pos < self.count():
             self.scrollToItem(self.item(insert_pos))
+
+    def update_item_image_data(self, item_row, new_img_bytes):
+        """
+        Actualiza la imagen visual Y los datos ocultos de un ítem.
+        Crucial para que la rotación persista al arrastrar.
+        """
+        item = self.item(item_row)
+        if not item:
+            return
+
+        # 1. Actualizar lo visual (Icono)
+        pixmap = QPixmap()
+        pixmap.loadFromData(new_img_bytes)
+        item.setIcon(QIcon(pixmap))
+        
+        # 2. Actualizar el dato oculto (Memoria para Drag & Drop)
+        # Si no hacemos esto, al mover la página volverá a su estado original
+        item.setData(ROLE_IMAGE_DATA, new_img_bytes)

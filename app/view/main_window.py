@@ -40,6 +40,12 @@ class MainWindow(QMainWindow):
         self.btn_delete = QPushButton("🗑️ Borrar Seleccionadas")
         self.btn_delete.setObjectName("dangerBtn")
         self.btn_delete.clicked.connect(self.controller.handle_delete_page)
+
+        self.btn_rotate_left = QPushButton("⟲ Rotar Izq")
+        self.btn_rotate_left.clicked.connect(self.controller.handle_rotate_left)
+
+        self.btn_rotate_right = QPushButton("⟳ Rotar Der")
+        self.btn_rotate_right.clicked.connect(self.controller.handle_rotate_right)
         
         self.btn_save = QPushButton("💾 Guardar Nuevo PDF")
         self.btn_save.clicked.connect(self.controller.handle_save_pdf)
@@ -49,11 +55,25 @@ class MainWindow(QMainWindow):
 
         toolbar_layout.addWidget(self.btn_add)
         toolbar_layout.addWidget(self.btn_delete)
+        toolbar_layout.addSpacing(20) 
+        toolbar_layout.addWidget(self.btn_rotate_left)
+        toolbar_layout.addWidget(self.btn_rotate_right)
         toolbar_layout.addStretch()
         toolbar_layout.addWidget(self.btn_clear)
         toolbar_layout.addWidget(self.btn_save)
         
         main_layout.addLayout(toolbar_layout)
+
+        # Separador visual (opcional, para dar aire)
+        main_layout.addSpacing(10)
+
+        # Footer de Copyright
+        self.lbl_copyright = QLabel("© Ing. Jose Luis Muñoz")
+        self.lbl_copyright.setAlignment(Qt.AlignCenter)
+        # Estilo sutil: letra más pequeña y color grisáceo para no distraer
+        self.lbl_copyright.setStyleSheet("font-size: 11px; color: #808080; margin-bottom: 5px;")
+        
+        main_layout.addWidget(self.lbl_copyright)
 
     # --- Diálogos ---
     def show_file_dialog(self):

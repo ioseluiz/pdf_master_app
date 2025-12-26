@@ -41,3 +41,20 @@ class PDFModel:
     def delete_page(self, index):
         """Elimina una página del documento en memoria."""
         self.current_doc.delete_page(index)
+
+    def rotate_page(self, page_index, clockwise=True):
+        """Rota una página 90 grados a la derecha o izquierda."""
+        if page_index < 0 or page_index >= len(self.current_doc):
+            return
+
+        page = self.current_doc[page_index]
+        # Obtenemos rotación actual
+        current_rot = page.rotation
+        
+        # Calculamos nueva rotación
+        if clockwise:
+            new_rot = (current_rot + 90) % 360
+        else:
+            new_rot = (current_rot - 90) % 360
+            
+        page.set_rotation(new_rot)

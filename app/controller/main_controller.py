@@ -22,6 +22,38 @@ class MainController:
             
             self._refresh_preview()
 
+    def handle_rotate_left(self):
+        self._rotate_selected_pages(clockwise=False)
+
+    def handle_rotate_right(self):
+        self._rotate_selected_pages(clockwise=True)
+
+    def _rotate_selected_pages(self, clockwise):
+        """Lógica común para rotar."""
+        # Obtenemos los items seleccionados directamente del widget
+        # No usamos 'get_selected_indices' simple porque necesitamos acceso al objeto item
+        list_widget = self.view.pages_list
+        selected_items = list_widget.selectedItems()
+
+        if not selected_items:
+            return
+
+        for item in selected_items:
+            # 1. Averiguar qué página del PDF es (Índice Original)
+            # Recuerda: custom_widgets define ROLE_ORIGINAL_INDEX = Qt.UserRole + 1
+            original_index = item.data(Qt.UserRole + 1)
+            
+            # 2. Rotar en el modelo
+            self.model.rotate_page(original_index, clockwise)
+            
+            # 3. Obtener la NUEVA imagen generada (rotada)
+            new_img = self.model.get_page_image(original_index)
+            
+            # 4. Actualizar la vista inmediatamente
+            # Necesitamos la fila visual actual para decirle al widget cuál actualizar
+            current_row = list_widget.row(item)
+            list_widget.update_item_image_data(current_row, new_img)
+
     def handle_delete_page(self):
         # Obtenemos los índices visuales (fila en la grilla)
         indices_to_delete = self.view.get_selected_indices()
