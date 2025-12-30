@@ -1,0 +1,51 @@
+name: Build PDFMaster Executable
+
+# 1. Trigger: Se ejecuta cada vez que haces push a la rama 'main' (o 'master')
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    # 2. Entorno: Usamos Windows Server porque queremos un .exe nativo
+    runs-on: windows-latest
+
+    steps:
+    # A. Descargar tu código del repositorio
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    # B. Instalar Python
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9' # Usamos una versión estable compatible con PyQt5
+        cache: 'pip' # Esto hace que las siguientes ejecuciones sean más rápidas
+
+    # C. Instalar tus librerías (PyQt5, PyMuPDF) y PyInstaller
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    # D. Generar el ejecutable usando tu archivo .spec existente
+    # Esto asegura que use la configuración que ya tienes definida
+    - name: Build with PyInstaller
+      run: |
+        pyinstaller PDFMaster_App.spec
+
+    # E. Verificar que se creó (Opcional, para debug)
+    - name: Verify Build
+      run: |
+        Get-ChildItem dist
+
+    # F. Subir el .exe resultante como un "Artefacto" para que lo puedas descargar
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: PDFMaster-Windows-Build
+        path: dist/PDFMaster_App.exe
+        retention-days: 5
