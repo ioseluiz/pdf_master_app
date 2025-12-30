@@ -1,6 +1,6 @@
 import sys
 from PyQt5.QtWidgets import QListWidget, QAbstractItemView, QListWidgetItem
-from PyQt5.QtCore import Qt, QSize, QTimer
+from PyQt5.QtCore import Qt, QSize, QTimer, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QPainter
 
 # Roles de datos
@@ -8,6 +8,9 @@ ROLE_ORIGINAL_INDEX = Qt.UserRole + 1
 ROLE_IMAGE_DATA = Qt.UserRole + 2
 
 class DraggableListWidget(QListWidget):
+    # Nueva señal para comunicar al controlador que cayeron archivos
+    filesDropped = pyqtSignal(list)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         
@@ -57,23 +60,44 @@ class DraggableListWidget(QListWidget):
         
         self.addItem(item)
 
-    # --- Lógica de Reordenamiento ---
+    # --- Lógica de Reordenamiento y Drop Externo ---
 
     def dragEnterEvent(self, event):
-        if event.source() == self:
+        # Aceptar si son archivos del sistema
+        if event.mimeData().hasUrls():
+            event.accept()
+        # Aceptar si es reordenamiento interno
+        elif event.source() == self:
             event.accept()
         else:
             super().dragEnterEvent(event)
 
     def dragMoveEvent(self, event):
-        if event.source() == self:
+        if event.mimeData().hasUrls():
+            event.setDropAction(Qt.CopyAction)
+            event.accept()
+        elif event.source() == self:
             event.setDropAction(Qt.MoveAction)
             event.accept()
         else:
             super().dragMoveEvent(event)
 
     def dropEvent(self, event):
-        if event.source() == self:
+        # 1. Caso: Archivos Externos (Drag & Drop desde explorador)
+        if event.mimeData().hasUrls():
+            event.setDropAction(Qt.CopyAction)
+            event.accept()
+            
+            file_paths = []
+            for url in event.mimeData().urls():
+                if url.isLocalFile():
+                    file_paths.append(str(url.toLocalFile()))
+            
+            if file_paths:
+                self.filesDropped.emit(file_paths)
+
+        # 2. Caso: Reordenamiento Interno
+        elif event.source() == self:
             # 1. Evitamos que Qt intente borrar los items automáticamente
             #    Le decimos "Copia esto", pero nosotros haremos el trabajo sucio.
             event.setDropAction(Qt.CopyAction)

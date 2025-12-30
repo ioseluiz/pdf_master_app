@@ -12,14 +12,35 @@ class MainController:
         self.view = view
 
     def handle_add_pdf(self):
+        """Manejador para el botón Agregar (diálogo)."""
         files = self.view.show_file_dialog()
         if files:
-            for f in files:
-                try:
-                    self.model.load_pdf(f)
-                except Exception as e:
-                    self.view.show_message("Error", f"No se pudo cargar {f}\n{str(e)}", "error")
-            
+            self.add_files_by_paths(files)
+
+    def handle_dropped_files(self, file_paths):
+        """Manejador para archivos soltados (Drag & Drop)."""
+        # Filtramos solo archivos PDF para evitar errores
+        pdf_files = [f for f in file_paths if f.lower().endswith('.pdf')]
+        
+        if not pdf_files:
+            # Opcional: Mostrar aviso si soltaron algo que no es PDF
+            # self.view.show_message("Aviso", "Solo se admiten archivos PDF.")
+            return
+
+        self.add_files_by_paths(pdf_files)
+
+    def add_files_by_paths(self, file_list):
+        """Método auxiliar reutilizable para cargar una lista de rutas."""
+        added = False
+        for f in file_list:
+            try:
+                self.model.load_pdf(f)
+                added = True
+            except Exception as e:
+                self.view.show_message("Error", f"No se pudo cargar {f}\n{str(e)}", "error")
+        
+        # Solo refrescamos si al menos uno se cargó con éxito
+        if added:
             self._refresh_preview()
 
     def handle_rotate_left(self):
@@ -31,7 +52,6 @@ class MainController:
     def _rotate_selected_pages(self, clockwise):
         """Lógica común para rotar."""
         # Obtenemos los items seleccionados directamente del widget
-        # No usamos 'get_selected_indices' simple porque necesitamos acceso al objeto item
         list_widget = self.view.pages_list
         selected_items = list_widget.selectedItems()
 
@@ -40,7 +60,6 @@ class MainController:
 
         for item in selected_items:
             # 1. Averiguar qué página del PDF es (Índice Original)
-            # Recuerda: custom_widgets define ROLE_ORIGINAL_INDEX = Qt.UserRole + 1
             original_index = item.data(Qt.UserRole + 1)
             
             # 2. Rotar en el modelo
@@ -50,7 +69,6 @@ class MainController:
             new_img = self.model.get_page_image(original_index)
             
             # 4. Actualizar la vista inmediatamente
-            # Necesitamos la fila visual actual para decirle al widget cuál actualizar
             current_row = list_widget.row(item)
             list_widget.update_item_image_data(current_row, new_img)
 
@@ -61,12 +79,8 @@ class MainController:
         if not indices_to_delete:
             return
 
-        # En este enfoque simplificado, como el modelo y la vista deben sincronizarse,
-        # y PyMuPDF borra por índice, es más seguro reconstruir el PDF
-        # o borrar del modelo inmediatamente.
-        
         # Para mantener consistencia simple:
-        # 1. Borramos del modelo (se requiere cuidado con índices cambiantes)
+        # 1. Borramos del modelo
         for idx in indices_to_delete:
             self.model.delete_page(idx)
             
@@ -82,24 +96,6 @@ class MainController:
             try:
                 # 1. Obtener el orden visual actual
                 current_order = self.view.get_current_order()
-                
-                # Nota: Como el usuario puede haber arrastrado items,
-                # `current_order` contiene los índices de cómo están las páginas
-                # en el modelo actualmente.
-                
-                # Sin embargo, DraggableListWidget solo cambia la visualización.
-                # Al guardar, le decimos al modelo: "Toma las páginas en este orden y guárdalas".
-                
-                # Como el modelo ya se actualizó al borrar páginas, los índices en la vista (0 a N)
-                # deberían coincidir con lo que ve el usuario si reordenamos.
-                
-                # El truco: La vista tiene items. Cada item tiene data oculta con el índice.
-                # Pero si borramos, los índices cambian. 
-                # Estrategia robusta: Guardar lo que está en pantalla.
-                
-                # Simplificación para este ejercicio:
-                # El modelo tiene las páginas. La vista tiene el orden deseado de esas páginas.
-                # Al arrastrar y soltar, cambiamos el orden en la UI.
                 
                 # Llamamos a reordenar y guardar:
                 self.model.reorder_and_save(current_order, path)

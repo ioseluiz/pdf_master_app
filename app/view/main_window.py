@@ -29,6 +29,10 @@ class MainWindow(QMainWindow):
 
         # --- Área Principal (Drag & Drop) ---
         self.pages_list = DraggableListWidget()
+        
+        # [MODIFICACIÓN] Conectamos la señal de drop externo al controlador
+        self.pages_list.filesDropped.connect(self.controller.handle_dropped_files)
+        
         main_layout.addWidget(self.pages_list)
 
         # --- Barra de Herramientas (Botones) ---
