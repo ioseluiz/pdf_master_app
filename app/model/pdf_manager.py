@@ -5,11 +5,9 @@ import os
 class PDFModel:
     def __init__(self):
         self.current_doc = fitz.open()
-        # Lista para rastrear el origen: [(nombre_archivo, numero_pagina_original), ...]
         self.page_mapping = [] 
 
     def load_pdf(self, filepath):
-        """Carga un PDF, lo fusiona y registra el origen de sus páginas."""
         new_doc = fitz.open(filepath)
         filename = os.path.basename(filepath)
         page_count = len(new_doc)
@@ -32,27 +30,51 @@ class PDFModel:
         return pix.tobytes("png")
 
     def get_page_label(self, index):
-        """Genera la etiqueta asegurando que el número de página quede visible."""
         if 0 <= index < len(self.page_mapping):
             fname, pnum = self.page_mapping[index]
-            
-            # 1. Truncamos SOLO el nombre si es muy largo (ej: más de 15 caracteres)
-            # Esto evita que el nombre ocupe dos líneas y empuje el número fuera
             if len(fname) > 15:
                 fname = fname[:12] + "..."
-            
-            # 2. Forzamos el salto de línea (\n)
-            # Así: Línea 1 = Nombre (posiblemente cortado)
-            #      Línea 2 = Pág X (Siempre visible)
             return f"{fname}\nPág {pnum}"
-            
         return f"Pág {index + 1}"
 
-    def reorder_and_save(self, new_order_indices, output_path):
+    def reorder_and_save(self, new_order_indices, output_path, quality='standard'):
+        """
+        Guarda el PDF aplicando re-compresión de imágenes real para reducir tamaño.
+        """
         new_doc = fitz.open()
+        
+        # 1. Copiamos las páginas en el nuevo orden
         for index in new_order_indices:
             new_doc.insert_pdf(self.current_doc, from_page=index, to_page=index)
-        new_doc.save(output_path)
+        
+        # 2. Aplicamos la optimización de imágenes según la calidad
+        # rewrite_images modifica el documento en memoria re-comprimiendo las imágenes
+        
+        try:
+            if quality == 'low':
+                # BAJA: 72 DPI (Web/Email), Calidad JPG 50, escala de grises opcional
+                # Esto reducirá drásticamente el tamaño si hay muchas imágenes.
+                new_doc.rewrite_images(dpi_target=72, quality=50, bitonal=False)
+                garbage_level = 4
+                
+            elif quality == 'standard':
+                # STANDARD: 150 DPI (Pantalla buena), Calidad JPG 75
+                # Balance entre peso y legibilidad.
+                new_doc.rewrite_images(dpi_target=150, quality=75)
+                garbage_level = 3
+                
+            else: # high
+                # ALTA: No tocamos las imágenes (Original).
+                # Solo limpiamos metadatos básicos.
+                garbage_level = 1
+                
+        except AttributeError:
+            # Fallback por si la versión de PyMuPDF es muy antigua, aunque 1.26.7 lo soporta
+            print("Aviso: 'rewrite_images' no disponible. Se guardará sin optimización de imagen.")
+            garbage_level = 4 if quality == 'low' else 0
+
+        # 3. Guardado final con limpieza de estructura
+        new_doc.save(output_path, garbage=garbage_level, deflate=True)
         new_doc.close()
 
     def delete_page(self, index):

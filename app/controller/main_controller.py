@@ -17,7 +17,6 @@ class MainController:
             self.add_files_by_paths(files)
 
     def handle_dropped_files(self, file_paths):
-        # Filtramos solo PDFs
         pdf_files = [f for f in file_paths if f.lower().endswith('.pdf')]
         if not pdf_files:
             return
@@ -74,8 +73,15 @@ class MainController:
         path = self.view.show_save_dialog()
         if path:
             try:
+                # 1. Obtenemos el orden visual
                 current_order = self.view.get_current_order()
-                self.model.reorder_and_save(current_order, path)
+                
+                # 2. Obtenemos la calidad seleccionada por el usuario
+                quality = self.view.get_selected_quality_code()
+                
+                # 3. Guardamos pasando ambos parámetros
+                self.model.reorder_and_save(current_order, path, quality=quality)
+                
                 self.view.show_message("Éxito", "Archivo PDF guardado correctamente.")
             except Exception as e:
                 self.view.show_message("Error", f"Error al guardar: {str(e)}", "error")
@@ -83,16 +89,15 @@ class MainController:
     def handle_clear(self):
         import fitz
         self.model.current_doc = fitz.open()
-        self.model.page_mapping = [] # Limpiamos el mapping también
+        self.model.page_mapping = [] 
         self.view.pages_list.clear()
 
     def _refresh_preview(self):
-        """Regenera todas las miniaturas recuperando imagen Y etiqueta."""
         count = self.model.get_page_count()
         pages_data = []
         for i in range(count):
             img = self.model.get_page_image(i)
-            label = self.model.get_page_label(i) # Obtenemos el texto personalizado
+            label = self.model.get_page_label(i)
             pages_data.append((img, label))
         
         self.view.update_pages_view(pages_data)

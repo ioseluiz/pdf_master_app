@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                             QPushButton, QLabel, QFileDialog, QMessageBox)
+                             QPushButton, QLabel, QFileDialog, QMessageBox, QComboBox)
 from PyQt5.QtCore import Qt
 from .styles import DARK_THEME
 from .custom_widgets import DraggableListWidget
@@ -48,6 +48,48 @@ class MainWindow(QMainWindow):
         self.btn_rotate_right = QPushButton("⟳ Rotar Der")
         self.btn_rotate_right.clicked.connect(self.controller.handle_rotate_right)
         
+        # --- SELECTOR DE CALIDAD (ESTILO CORREGIDO) ---
+        self.combo_quality = QComboBox()
+        self.combo_quality.addItems([
+            "Calidad: Standard (Balanceado)",
+            "Calidad: Alta (Original)",
+            "Calidad: Baja (Archivo Pequeño)"
+        ])
+        
+        # MODIFICACIÓN: Estilo explícito para la lista desplegable
+        self.combo_quality.setStyleSheet("""
+            QComboBox {
+                background-color: #3c3f41;
+                color: white;
+                border: 1px solid #555;
+                padding: 5px;
+                border-radius: 4px;
+                min-width: 200px;
+            }
+            
+            /* Estilo para la lista desplegable interna */
+            QComboBox QAbstractItemView {
+                background-color: #3c3f41; /* Fondo oscuro igual al combo */
+                color: white;              /* Texto blanco */
+                selection-background-color: #3a7ca5; /* Azul al pasar el mouse */
+                selection-color: white;
+                border: 1px solid #555;
+            }
+            
+            /* Flecha */
+            QComboBox::drop-down {
+                border: 0px;
+                background: transparent;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid white; /* Dibujamos una flecha simple con CSS */
+                margin-right: 10px;
+            }
+        """)
+        
         self.btn_save = QPushButton("💾 Guardar Nuevo PDF")
         self.btn_save.clicked.connect(self.controller.handle_save_pdf)
         
@@ -60,8 +102,10 @@ class MainWindow(QMainWindow):
         toolbar_layout.addWidget(self.btn_rotate_left)
         toolbar_layout.addWidget(self.btn_rotate_right)
         toolbar_layout.addStretch()
-        toolbar_layout.addWidget(self.btn_clear)
+        
+        toolbar_layout.addWidget(self.combo_quality)
         toolbar_layout.addWidget(self.btn_save)
+        toolbar_layout.addWidget(self.btn_clear)
         
         main_layout.addLayout(toolbar_layout)
         main_layout.addSpacing(10)
@@ -72,7 +116,7 @@ class MainWindow(QMainWindow):
         self.lbl_copyright.setStyleSheet("font-size: 11px; color: #808080; margin-bottom: 5px;")
         main_layout.addWidget(self.lbl_copyright)
 
-    # --- Diálogos ---
+    # --- Diálogos y Helpers ---
     def show_file_dialog(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Seleccionar PDFs", "", "PDF Files (*.pdf)")
         return files
@@ -81,6 +125,13 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(self, "Guardar PDF", "nuevo_documento.pdf", "PDF Files (*.pdf)")
         return path
 
+    def get_selected_quality_code(self):
+        """Traduce la selección del usuario a un código interno."""
+        index = self.combo_quality.currentIndex()
+        if index == 1: return 'high'
+        if index == 2: return 'low'
+        return 'standard'
+
     def show_message(self, title, text, type="info"):
         if type == "error":
             QMessageBox.critical(self, title, text)
@@ -88,12 +139,8 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, title, text)
             
     def update_pages_view(self, pages_data):
-        """
-        Recibe una lista de tuplas: (img_bytes, label_text)
-        """
         self.pages_list.clear()
         for idx, (img_bytes, label) in enumerate(pages_data):
-            # Pasamos la etiqueta (nombre archivo) + el índice visual
             self.pages_list.add_pdf_page(img_bytes, label, idx)
             
     def get_current_order(self):
