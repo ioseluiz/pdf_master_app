@@ -31,6 +31,9 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
 
+    - name: List Installed Packages
+      run: pip list
+
     # D. Generar el ejecutable usando tu archivo .spec existente
     # Esto asegura que use la configuración que ya tienes definida
     - name: Build with PyInstaller
