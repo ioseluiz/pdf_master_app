@@ -6,7 +6,14 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=[],
+    # AGREGAMOS ESTAS IMPORTACIONES OCULTAS:
+    hiddenimports=[
+        'PyQt5', 
+        'PyQt5.QtCore', 
+        'PyQt5.QtGui', 
+        'PyQt5.QtWidgets', 
+        'PyQt5.sip'
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -14,6 +21,8 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
+
 pyz = PYZ(a.pure)
 
 exe = EXE(
