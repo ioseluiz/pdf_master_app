@@ -27,15 +27,12 @@ class MainWindow(QMainWindow):
         header_layout.addStretch()
         main_layout.addLayout(header_layout)
 
-        # --- Área Principal (Drag & Drop) ---
+        # --- Área Principal ---
         self.pages_list = DraggableListWidget()
-        
-        # [MODIFICACIÓN] Conectamos la señal de drop externo al controlador
         self.pages_list.filesDropped.connect(self.controller.handle_dropped_files)
-        
         main_layout.addWidget(self.pages_list)
 
-        # --- Barra de Herramientas (Botones) ---
+        # --- Barra de Herramientas ---
         toolbar_layout = QHBoxLayout()
         
         self.btn_add = QPushButton("📂 Agregar PDF(s)")
@@ -67,16 +64,12 @@ class MainWindow(QMainWindow):
         toolbar_layout.addWidget(self.btn_save)
         
         main_layout.addLayout(toolbar_layout)
-
-        # Separador visual (opcional, para dar aire)
         main_layout.addSpacing(10)
 
-        # Footer de Copyright
+        # Footer
         self.lbl_copyright = QLabel("© Ing. Jose Luis Muñoz")
         self.lbl_copyright.setAlignment(Qt.AlignCenter)
-        # Estilo sutil: letra más pequeña y color grisáceo para no distraer
         self.lbl_copyright.setStyleSheet("font-size: 11px; color: #808080; margin-bottom: 5px;")
-        
         main_layout.addWidget(self.lbl_copyright)
 
     # --- Diálogos ---
@@ -94,25 +87,25 @@ class MainWindow(QMainWindow):
         else:
             QMessageBox.information(self, title, text)
             
-    def update_pages_view(self, images_data):
-        """Recibe una lista de bytes de imágenes y repuebla la lista."""
+    def update_pages_view(self, pages_data):
+        """
+        Recibe una lista de tuplas: (img_bytes, label_text)
+        """
         self.pages_list.clear()
-        for idx, img_bytes in enumerate(images_data):
-            self.pages_list.add_pdf_page(img_bytes, idx)
+        for idx, (img_bytes, label) in enumerate(pages_data):
+            # Pasamos la etiqueta (nombre archivo) + el índice visual
+            self.pages_list.add_pdf_page(img_bytes, label, idx)
             
     def get_current_order(self):
         count = self.pages_list.count()
         order = []
         for i in range(count):
             item = self.pages_list.item(i)
-            # USAR +1 AQUÍ TAMBIÉN
             original_index = item.data(Qt.UserRole + 1)
             order.append(original_index)
         return order
         
     def get_selected_indices(self):
-        """Devuelve una lista de índices visuales seleccionados para borrar."""
-        # Necesitamos borrarlos de atrás hacia adelante para no romper índices
         rows = [self.pages_list.row(item) for item in self.pages_list.selectedItems()]
         rows.sort(reverse=True)
         return rows

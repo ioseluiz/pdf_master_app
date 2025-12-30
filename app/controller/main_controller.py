@@ -12,25 +12,18 @@ class MainController:
         self.view = view
 
     def handle_add_pdf(self):
-        """Manejador para el botón Agregar (diálogo)."""
         files = self.view.show_file_dialog()
         if files:
             self.add_files_by_paths(files)
 
     def handle_dropped_files(self, file_paths):
-        """Manejador para archivos soltados (Drag & Drop)."""
-        # Filtramos solo archivos PDF para evitar errores
+        # Filtramos solo PDFs
         pdf_files = [f for f in file_paths if f.lower().endswith('.pdf')]
-        
         if not pdf_files:
-            # Opcional: Mostrar aviso si soltaron algo que no es PDF
-            # self.view.show_message("Aviso", "Solo se admiten archivos PDF.")
             return
-
         self.add_files_by_paths(pdf_files)
 
     def add_files_by_paths(self, file_list):
-        """Método auxiliar reutilizable para cargar una lista de rutas."""
         added = False
         for f in file_list:
             try:
@@ -39,7 +32,6 @@ class MainController:
             except Exception as e:
                 self.view.show_message("Error", f"No se pudo cargar {f}\n{str(e)}", "error")
         
-        # Solo refrescamos si al menos uno se cargó con éxito
         if added:
             self._refresh_preview()
 
@@ -50,8 +42,6 @@ class MainController:
         self._rotate_selected_pages(clockwise=True)
 
     def _rotate_selected_pages(self, clockwise):
-        """Lógica común para rotar."""
-        # Obtenemos los items seleccionados directamente del widget
         list_widget = self.view.pages_list
         selected_items = list_widget.selectedItems()
 
@@ -59,28 +49,18 @@ class MainController:
             return
 
         for item in selected_items:
-            # 1. Averiguar qué página del PDF es (Índice Original)
             original_index = item.data(Qt.UserRole + 1)
-            
-            # 2. Rotar en el modelo
             self.model.rotate_page(original_index, clockwise)
-            
-            # 3. Obtener la NUEVA imagen generada (rotada)
             new_img = self.model.get_page_image(original_index)
             
-            # 4. Actualizar la vista inmediatamente
             current_row = list_widget.row(item)
             list_widget.update_item_image_data(current_row, new_img)
 
     def handle_delete_page(self):
-        # Obtenemos los índices visuales (fila en la grilla)
         indices_to_delete = self.view.get_selected_indices()
-        
         if not indices_to_delete:
             return
 
-        # Para mantener consistencia simple:
-        # 1. Borramos del modelo
         for idx in indices_to_delete:
             self.model.delete_page(idx)
             
@@ -94,28 +74,25 @@ class MainController:
         path = self.view.show_save_dialog()
         if path:
             try:
-                # 1. Obtener el orden visual actual
                 current_order = self.view.get_current_order()
-                
-                # Llamamos a reordenar y guardar:
                 self.model.reorder_and_save(current_order, path)
-                
                 self.view.show_message("Éxito", "Archivo PDF guardado correctamente.")
             except Exception as e:
                 self.view.show_message("Error", f"Error al guardar: {str(e)}", "error")
 
     def handle_clear(self):
-        # Reiniciar modelo y vista
         import fitz
         self.model.current_doc = fitz.open()
+        self.model.page_mapping = [] # Limpiamos el mapping también
         self.view.pages_list.clear()
 
     def _refresh_preview(self):
-        """Regenera todas las miniaturas desde el modelo."""
+        """Regenera todas las miniaturas recuperando imagen Y etiqueta."""
         count = self.model.get_page_count()
-        images = []
+        pages_data = []
         for i in range(count):
             img = self.model.get_page_image(i)
-            images.append(img)
+            label = self.model.get_page_label(i) # Obtenemos el texto personalizado
+            pages_data.append((img, label))
         
-        self.view.update_pages_view(images)
+        self.view.update_pages_view(pages_data)
