@@ -37,6 +37,16 @@ class DraggableListWidget(QListWidget):
         if not pixmap.loadFromData(img_data):
             return
 
+        # Pre-escalar al tamaño exacto de display antes de guardar en QIcon.
+        # Qt compone el highlight de selección sobre el pixmap almacenado;
+        # tenerlo ya en el tamaño correcto elimina escalado en cada repaint.
+        icon_size = self.iconSize()
+        pixmap = pixmap.scaled(
+            icon_size,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+
         item = QListWidgetItem()
         item.setIcon(QIcon(pixmap))
         item.setText(label_text)
@@ -124,6 +134,11 @@ class DraggableListWidget(QListWidget):
             return
         pixmap = QPixmap()
         pixmap.loadFromData(new_img_bytes)
+        pixmap = pixmap.scaled(
+            self.iconSize(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
         item.setIcon(QIcon(pixmap))
 
     def remove_pages_by_original_index(self, original_indices_to_delete):
