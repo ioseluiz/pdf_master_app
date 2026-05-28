@@ -13,9 +13,11 @@ class DraggableListWidget(QListWidget):
 
         self.setViewMode(QListWidget.ViewMode.IconMode)
         self.setResizeMode(QListWidget.ResizeMode.Adjust)
-        # Static: items en posiciones de grid fijo → hit-testing O(1) en lugar de O(n)
+        # Static: items en grid fijo → hit-testing O(1) en lugar de O(n)
         self.setMovement(QListWidget.Movement.Static)
-        # Todos los items tienen el mismo tamaño → Qt evita recalcular layout por item
+        # Qt.Static deshabilita drops en el viewport internamente; lo restauramos
+        self.viewport().setAcceptDrops(True)
+        # Todos los items del mismo tamaño → Qt evita recalcular layout por item
         self.setUniformItemSizes(True)
 
         self.setGridSize(QSize(160, 270))
