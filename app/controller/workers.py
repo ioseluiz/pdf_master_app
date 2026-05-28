@@ -33,7 +33,7 @@ class PDFLoaderThread(QThread):
                     if not self.is_running:
                         break
                     page = doc.load_page(i)
-                    pix = page.get_pixmap(matrix=fitz.Matrix(0.3, 0.3))
+                    pix = page.get_pixmap(matrix=fitz.Matrix(0.2, 0.2))
                     batch.append((pix.tobytes("png"), i + 1))
 
                     if len(batch) >= BATCH_SIZE or i == total_pages - 1:

@@ -32,7 +32,7 @@ class PDFModel:
         entry = self.pages[index]
         doc = self._get_cached_doc(entry['path'])
         page = doc.load_page(entry['page_src'])
-        mat = fitz.Matrix(0.3, 0.3)
+        mat = fitz.Matrix(0.2, 0.2)
         if entry['rotation']:
             mat = mat.prerotate(entry['rotation'])
         pix = page.get_pixmap(matrix=mat)

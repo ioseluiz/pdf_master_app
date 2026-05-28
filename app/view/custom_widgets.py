@@ -20,9 +20,9 @@ class DraggableListWidget(QListWidget):
         # Todos los items del mismo tamaño → Qt evita recalcular layout por item
         self.setUniformItemSizes(True)
 
-        self.setGridSize(QSize(160, 270))
-        self.setSpacing(10)
-        self.setIconSize(QSize(140, 180))
+        self.setGridSize(QSize(130, 210))
+        self.setSpacing(8)
+        self.setIconSize(QSize(105, 140))
         self.setWordWrap(True)
 
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
@@ -37,21 +37,20 @@ class DraggableListWidget(QListWidget):
         if not pixmap.loadFromData(img_data):
             return
 
-        # Pre-escalar al tamaño exacto de display antes de guardar en QIcon.
-        # Qt compone el highlight de selección sobre el pixmap almacenado;
-        # tenerlo ya en el tamaño correcto elimina escalado en cada repaint.
-        icon_size = self.iconSize()
+        # Pre-escalar al tamaño exacto del ícono antes de guardar en QIcon.
+        # FastTransformation: ~1ms/imagen vs ~10ms con Smooth → cabe en el tick del timer.
+        # El pixmap almacenado es pequeño → compositing de selección más rápido.
         pixmap = pixmap.scaled(
-            icon_size,
+            self.iconSize(),
             Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
+            Qt.TransformationMode.FastTransformation,
         )
 
         item = QListWidgetItem()
         item.setIcon(QIcon(pixmap))
         item.setText(label_text)
         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        item.setSizeHint(QSize(150, 260))
+        item.setSizeHint(QSize(120, 200))
         item.setData(ROLE_ORIGINAL_INDEX, original_index)
         self.addItem(item)
 
