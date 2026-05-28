@@ -102,31 +102,27 @@ class MainController:
         )
 
     def _flush_page_queue(self):
-        """
-        Vacía la cola de miniaturas a ritmo controlado.
-        Al procesar solo ITEMS_PER_FLUSH por tick el event loop puede
-        repintar la ventana entre llamadas, evitando el congelamiento.
-        """
+        """Vacía la cola de miniaturas a ritmo controlado sin bloquear el event loop."""
         batch = self._page_queue[:ITEMS_PER_FLUSH]
         del self._page_queue[:ITEMS_PER_FLUSH]
 
         for img_bytes, label, original_index in batch:
             self.view.pages_list.add_pdf_page(img_bytes, label, original_index)
 
-        if self._progress_state:
+        if self._progress_state and not self._loading_finished:
             done, total, label = self._progress_state
             self.view.show_progress(done, total, label)
 
-        # Terminar solo cuando el worker terminó Y la cola quedó vacía
         if self._loading_finished and not self._page_queue:
             self._flush_timer.stop()
-            self._loading_base_index = {}
-            QApplication.restoreOverrideCursor()
-            self.view.show_progress_complete()
 
     def on_loading_finished(self):
-        """El worker terminó de renderizar; la cola puede aún tener items pendientes."""
+        """Worker terminó — ocultar progress bar y restaurar cursor.
+        El timer sigue vaciando la cola en segundo plano sin mostrar progreso."""
         self._loading_finished = True
+        self._loading_base_index = {}
+        QApplication.restoreOverrideCursor()
+        self.view.show_progress_complete()
 
     # --- EDICIÓN ---
     def handle_rotate_left(self):
