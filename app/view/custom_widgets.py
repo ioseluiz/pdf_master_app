@@ -25,10 +25,6 @@ class DraggableListWidget(QListWidget):
         self.setIconSize(QSize(140, 180))
         self.setWordWrap(True)
 
-        # Scroll por píxel: más suave al navegar listas grandes
-        self.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-        self.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.setDragEnabled(True)
         self.setAcceptDrops(True)
