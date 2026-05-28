@@ -1,6 +1,7 @@
-from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                             QPushButton, QLabel, QFileDialog, QMessageBox, QComboBox)
-from PyQt5.QtCore import Qt
+from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+                             QPushButton, QLabel, QFileDialog, QMessageBox, QComboBox,
+                             QProgressBar)
+from PyQt6.QtCore import Qt, QTimer
 from .styles import DARK_THEME
 from .custom_widgets import DraggableListWidget
 
@@ -10,6 +11,7 @@ class MainWindow(QMainWindow):
         self.controller = controller
         self.setWindowTitle("PDF Master - Combinar y Editar")
         self.resize(1000, 700)
+        self.setMinimumSize(850, 580)
         self.setStyleSheet(DARK_THEME)
         
         self.init_ui()
@@ -31,6 +33,35 @@ class MainWindow(QMainWindow):
         self.pages_list = DraggableListWidget()
         self.pages_list.filesDropped.connect(self.controller.handle_dropped_files)
         main_layout.addWidget(self.pages_list)
+
+        # --- Barra de Progreso (oculta por defecto) ---
+        self.progress_widget = QWidget()
+        progress_layout = QHBoxLayout(self.progress_widget)
+        progress_layout.setContentsMargins(4, 0, 4, 0)
+        progress_layout.setSpacing(8)
+
+        self.progress_label = QLabel("")
+        self.progress_label.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMaximumHeight(14)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                background-color: #3c3f41;
+                border: 1px solid #555;
+                border-radius: 3px;
+            }
+            QProgressBar::chunk {
+                background-color: #3a7ca5;
+                border-radius: 3px;
+            }
+        """)
+
+        progress_layout.addWidget(self.progress_label, 1)
+        progress_layout.addWidget(self.progress_bar, 2)
+        self.progress_widget.setVisible(False)
+        main_layout.addWidget(self.progress_widget)
 
         # --- Barra de Herramientas ---
         toolbar_layout = QHBoxLayout()
@@ -64,7 +95,7 @@ class MainWindow(QMainWindow):
                 border: 1px solid #555;
                 padding: 5px;
                 border-radius: 4px;
-                min-width: 200px;
+                min-width: 160px;
             }
             
             /* Estilo para la lista desplegable interna */
@@ -112,7 +143,7 @@ class MainWindow(QMainWindow):
 
         # Footer
         self.lbl_copyright = QLabel("© Ing. Jose Luis Muñoz")
-        self.lbl_copyright.setAlignment(Qt.AlignCenter)
+        self.lbl_copyright.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_copyright.setStyleSheet("font-size: 11px; color: #808080; margin-bottom: 5px;")
         main_layout.addWidget(self.lbl_copyright)
 
@@ -148,11 +179,28 @@ class MainWindow(QMainWindow):
         order = []
         for i in range(count):
             item = self.pages_list.item(i)
-            original_index = item.data(Qt.UserRole + 1)
+            original_index = item.data(Qt.ItemDataRole.UserRole + 1)
             order.append(original_index)
         return order
         
     def get_selected_indices(self):
-        rows = [self.pages_list.row(item) for item in self.pages_list.selectedItems()]
-        rows.sort(reverse=True)
-        return rows
+        indices = [item.data(Qt.ItemDataRole.UserRole + 1) for item in self.pages_list.selectedItems()]
+        indices.sort(reverse=True)
+        return indices
+
+    # --- Progreso de carga ---
+    def show_progress(self, value, maximum, label=""):
+        self.progress_bar.setMaximum(maximum)
+        self.progress_bar.setValue(value)
+        self.progress_label.setText(label)
+        self.progress_widget.setVisible(True)
+
+    def show_progress_complete(self):
+        self.progress_bar.setValue(self.progress_bar.maximum())
+        self.progress_label.setText("Carga completada")
+        QTimer.singleShot(2500, self.hide_progress)
+
+    def hide_progress(self):
+        self.progress_widget.setVisible(False)
+        self.progress_bar.setValue(0)
+        self.progress_label.setText("")

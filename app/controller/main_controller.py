@@ -1,15 +1,26 @@
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QApplication
-# Importamos los workers
+import os
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtWidgets import QApplication
 from .workers import PDFLoaderThread, PDFSaverThread
+
+ITEMS_PER_FLUSH = 5   # Items del widget creados por tick del timer (~30fps)
+
 
 class MainController:
     def __init__(self):
         self.model = None
         self.view = None
-        # Referencias a los hilos para evitar que el recolector de basura los elimine
         self.loader_thread = None
         self.saver_thread = None
+        self._loading_base_index = {}  # filepath -> índice base en modelo al inicio de carga
+        self._page_queue = []          # [(img_bytes, label, original_index)] pendientes de mostrar
+        self._progress_state = None    # (done, total, label) más reciente del worker
+        self._loading_finished = False
+
+        # Timer que vacía la cola a ritmo controlado sin bloquear la UI
+        self._flush_timer = QTimer()
+        self._flush_timer.setInterval(33)  # ~30 fps
+        self._flush_timer.timeout.connect(self._flush_page_queue)
 
     def set_model(self, model):
         self.model = model
@@ -29,51 +40,93 @@ class MainController:
             self.add_files_by_paths(pdf_files)
 
     def add_files_by_paths(self, file_list):
-        """Inicia la carga en segundo plano."""
-        # Feedback visual: Cursor de espera
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        
-        # Evitamos solapamiento de hilos de carga
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+
         if self.loader_thread and self.loader_thread.isRunning():
             self.view.show_message("Ocupado", "Espere a que termine la carga actual.")
             QApplication.restoreOverrideCursor()
             return
 
-        # Configuramos e iniciamos el hilo
-        self.loader_thread = PDFLoaderThread(file_list)
-        self.loader_thread.file_processed.connect(self.on_file_processed)
-        self.loader_thread.finished_all.connect(self.on_loading_finished)
-        self.loader_thread.error_occurred.connect(lambda err: self.view.show_message("Error", err, "error"))
-        
-        self.loader_thread.start()
+        self._loading_base_index = {}
+        self._page_queue = []
+        self._progress_state = None
+        self._loading_finished = False
 
-    def on_file_processed(self, file_path, pages_data):
-        """Se llama cuando un archivo ha sido procesado por el hilo."""
+        self.loader_thread = PDFLoaderThread(file_list)
+        self.loader_thread.file_started.connect(self.on_file_started)
+        self.loader_thread.page_batch_ready.connect(self.on_page_batch_ready)
+        self.loader_thread.finished_all.connect(self.on_loading_finished)
+        self.loader_thread.error_occurred.connect(
+            lambda err: self.view.show_message("Error de carga", err, "error")
+        )
+        self.loader_thread.start()
+        self._flush_timer.start()
+
+    def on_file_started(self, file_path, total_pages, file_num, total_files):
+        """Registra metadatos del archivo y muestra el progreso inicial."""
         try:
-            # Actualizamos modelo lógico
+            self._loading_base_index[file_path] = self.model.get_page_count()
             self.model.load_pdf(file_path)
-            
-            # Actualizamos vista
-            import os
-            filename = os.path.basename(file_path)
-            # Calculamos dónde empiezan las nuevas páginas
-            start_index = self.model.get_page_count() - len(pages_data)
-            
-            for i, (img_bytes, page_num) in enumerate(pages_data):
-                # Lógica de etiqueta (Label)
-                label = f"{filename}\nPág {page_num}"
-                if len(filename) > 15:
-                    label = f"{filename[:12]}...\nPág {page_num}"
-                
-                # Agregamos a la lista visual
-                self.view.pages_list.add_pdf_page(img_bytes, label, start_index + i)
-                
         except Exception as e:
-            print(f"Error actualizando UI: {e}")
+            self.view.show_message(
+                "Error de carga",
+                f"No se pudo cargar {os.path.basename(file_path)}:\n{e}",
+                "error"
+            )
+            self._loading_base_index.pop(file_path, None)
+            return
+
+        filename = os.path.basename(file_path)
+        label = f"Archivo {file_num}/{total_files}: {filename} — {total_pages} páginas"
+        self.view.show_progress(0, total_pages, label)
+
+    def on_page_batch_ready(self, file_path, pages_data, pages_done, total_pages):
+        """Encola miniaturas y actualiza el estado de progreso (no toca la UI directamente)."""
+        if file_path not in self._loading_base_index:
+            return
+
+        base_index = self._loading_base_index[file_path]
+        filename = os.path.basename(file_path)
+        start_index = base_index + (pages_done - len(pages_data))
+
+        for i, (img_bytes, page_num) in enumerate(pages_data):
+            label = f"{filename}\nPág {page_num}"
+            if len(filename) > 15:
+                label = f"{filename[:12]}...\nPág {page_num}"
+            self._page_queue.append((img_bytes, label, start_index + i))
+
+        percent = int(pages_done / total_pages * 100)
+        self._progress_state = (
+            pages_done, total_pages,
+            f"{filename}: {pages_done}/{total_pages} páginas ({percent}%)"
+        )
+
+    def _flush_page_queue(self):
+        """
+        Vacía la cola de miniaturas a ritmo controlado.
+        Al procesar solo ITEMS_PER_FLUSH por tick el event loop puede
+        repintar la ventana entre llamadas, evitando el congelamiento.
+        """
+        batch = self._page_queue[:ITEMS_PER_FLUSH]
+        del self._page_queue[:ITEMS_PER_FLUSH]
+
+        for img_bytes, label, original_index in batch:
+            self.view.pages_list.add_pdf_page(img_bytes, label, original_index)
+
+        if self._progress_state:
+            done, total, label = self._progress_state
+            self.view.show_progress(done, total, label)
+
+        # Terminar solo cuando el worker terminó Y la cola quedó vacía
+        if self._loading_finished and not self._page_queue:
+            self._flush_timer.stop()
+            self._loading_base_index = {}
+            QApplication.restoreOverrideCursor()
+            self.view.show_progress_complete()
 
     def on_loading_finished(self):
-        QApplication.restoreOverrideCursor()
-        self.view.show_message("Completado", "Carga de archivos finalizada.", "info")
+        """El worker terminó de renderizar; la cola puede aún tener items pendientes."""
+        self._loading_finished = True
 
     # --- EDICIÓN ---
     def handle_rotate_left(self):
@@ -85,39 +138,28 @@ class MainController:
     def _rotate_selected_pages(self, clockwise):
         list_widget = self.view.pages_list
         selected_items = list_widget.selectedItems()
-        if not selected_items: return
+        if not selected_items:
+            return
 
-        QApplication.setOverrideCursor(Qt.WaitCursor)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         for item in selected_items:
-            original_index = item.data(Qt.UserRole + 1)
+            original_index = item.data(Qt.ItemDataRole.UserRole + 1)
             self.model.rotate_page(original_index, clockwise)
-            # Obtenemos la nueva imagen rotada (usará la optimización 0.3 del modelo)
             new_img = self.model.get_page_image(original_index)
-            
-            current_row = list_widget.row(item)
-            list_widget.update_item_image_data(current_row, new_img)
+            list_widget.update_item_image_data(list_widget.row(item), new_img)
         QApplication.restoreOverrideCursor()
 
     def handle_delete_page(self):
         indices_to_delete = self.view.get_selected_indices()
-        if not indices_to_delete: return
-
+        if not indices_to_delete:
+            return
         for idx in indices_to_delete:
             self.model.delete_page(idx)
-        self._refresh_preview()
+        self.view.pages_list.remove_pages_by_original_index(indices_to_delete)
 
     def handle_clear(self):
-        import fitz
-        self.model.current_doc = fitz.open()
-        self.model.page_mapping = [] 
+        self.model.clear()
         self.view.pages_list.clear()
-
-    def _refresh_preview(self):
-        count = self.model.get_page_count()
-        pages_data = []
-        for i in range(count):
-            pages_data.append((self.model.get_page_image(i), self.model.get_page_label(i)))
-        self.view.update_pages_view(pages_data)
 
     # --- GUARDADO ASÍNCRONO ---
     def handle_save_pdf(self):
@@ -129,26 +171,19 @@ class MainController:
         if not path:
             return
 
-        # 1. Bloqueo visual de la UI
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        self.view.setEnabled(False) # Evita que el usuario toque botones mientras guarda
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        self.view.setEnabled(False)
 
-        # 2. Recopilar datos necesarios
         current_order = self.view.get_current_order()
         quality = self.view.get_selected_quality_code()
 
-        # 3. Iniciar el hilo de guardado
         self.saver_thread = PDFSaverThread(self.model, current_order, path, quality)
         self.saver_thread.finished.connect(self.on_save_finished)
         self.saver_thread.start()
 
     def on_save_finished(self, success, message):
-        """Callback al terminar el guardado."""
-        # 1. Restaurar la UI
         QApplication.restoreOverrideCursor()
         self.view.setEnabled(True)
-        
-        # 2. Mostrar mensaje al usuario
         if success:
             if "Advertencia" in message:
                 self.view.show_message("Guardado con Avisos", message, "info")

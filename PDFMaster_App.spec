@@ -1,18 +1,18 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
-    # AGREGAMOS ESTAS IMPORTACIONES OCULTAS:
+    datas=[
+        ('assets/icon.ico', 'assets'),
+    ],
     hiddenimports=[
-        'PyQt5', 
-        'PyQt5.QtCore', 
-        'PyQt5.QtGui', 
-        'PyQt5.QtWidgets', 
-        'PyQt5.sip'
+        'PyQt6',
+        'PyQt6.QtCore',
+        'PyQt6.QtGui',
+        'PyQt6.QtWidgets',
+        'PyQt6.sip',
     ],
     hookspath=[],
     hooksconfig={},
@@ -22,26 +22,33 @@ a = Analysis(
     optimize=0,
 )
 
-
 pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='PDFMaster_App',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='assets/icon.ico',
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='PDFMaster_App',
 )
