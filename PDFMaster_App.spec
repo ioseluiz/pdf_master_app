@@ -6,6 +6,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('assets/icon.ico', 'assets'),
+        ('assets/wizard_small.bmp', 'assets'),
     ],
     hiddenimports=[
         'PyQt6',

@@ -1,9 +1,10 @@
-#define AppName      "PDF Master"
-#define AppVersion   GetEnv("APP_VERSION")
-#define AppPublisher "Ing. Jose Luis Munoz"
-#define AppExeName   "PDFMaster_App.exe"
-#define AppDir       "..\dist\PDFMaster_App"
-#define IconFile     "..\assets\icon.ico"
+#define AppName        "PDF Master"
+#define AppVersion     GetEnv("APP_VERSION")
+#define AppPublisher   "Ing. Jose Luis Munoz"
+#define AppExeName     "PDFMaster_App.exe"
+#define AppDir         "..\dist\PDFMaster_App"
+#define IconFile       "..\assets\icon.ico"
+#define WizardSmall    "..\assets\wizard_small.bmp"
 
 [Setup]
 AppId={{F3A2C1B0-7E4D-4A8F-9C6B-2D5E8F0A1B3C}
@@ -22,7 +23,7 @@ UninstallDisplayIcon={app}\{#AppExeName}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
-WizardSmallImageFile={#IconFile}
+WizardSmallImageFile={#WizardSmall}
 DisableProgramGroupPage=yes
 ; Sin pantalla de bienvenida para instalación más rápida
 DisableWelcomePage=no
