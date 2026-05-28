@@ -13,12 +13,19 @@ class DraggableListWidget(QListWidget):
 
         self.setViewMode(QListWidget.ViewMode.IconMode)
         self.setResizeMode(QListWidget.ResizeMode.Adjust)
-        self.setMovement(QListWidget.Movement.Free)
+        # Static: items en posiciones de grid fijo → hit-testing O(1) en lugar de O(n)
+        self.setMovement(QListWidget.Movement.Static)
+        # Todos los items tienen el mismo tamaño → Qt evita recalcular layout por item
+        self.setUniformItemSizes(True)
 
         self.setGridSize(QSize(160, 270))
         self.setSpacing(10)
         self.setIconSize(QSize(140, 180))
         self.setWordWrap(True)
+
+        # Scroll por píxel: más suave al navegar listas grandes
+        self.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
 
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.setDragEnabled(True)
