@@ -127,6 +127,13 @@ class DraggableListWidget(QListWidget):
         if taken:
             self.scrollToItem(taken[0])
 
+    def selectionChanged(self, selected, deselected):
+        # Qt's base implementation calls visualRegionForSelection() for every
+        # changed item — O(n) visualRect() calls per mouse-move event.
+        # With 1000+ items that saturates the event loop.
+        # A full viewport repaint is O(1) and visually equivalent.
+        self.viewport().update()
+
     def update_item_image_data(self, item_row, new_img_bytes):
         item = self.item(item_row)
         if not item:
