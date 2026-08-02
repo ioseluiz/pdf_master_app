@@ -2,8 +2,10 @@ import os
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QApplication
 from .workers import PDFLoaderThread, PDFSaverThread
+from ..model.pdf_manager import IMAGE_EXTENSIONS
 
 ITEMS_PER_FLUSH = 5   # Items del widget creados por tick del timer (~30fps)
+SUPPORTED_EXTENSIONS = {'.pdf'} | IMAGE_EXTENSIONS
 
 
 class MainController:
@@ -35,9 +37,9 @@ class MainController:
             self.add_files_by_paths(files)
 
     def handle_dropped_files(self, file_paths):
-        pdf_files = [f for f in file_paths if f.lower().endswith('.pdf')]
-        if pdf_files:
-            self.add_files_by_paths(pdf_files)
+        valid_files = [f for f in file_paths if os.path.splitext(f)[1].lower() in SUPPORTED_EXTENSIONS]
+        if valid_files:
+            self.add_files_by_paths(valid_files)
 
     def add_files_by_paths(self, file_list):
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)

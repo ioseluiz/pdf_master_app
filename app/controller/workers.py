@@ -28,12 +28,24 @@ class PDFLoaderThread(QThread):
 
                 self.file_started.emit(file_path, total_pages, file_num, total_files)
 
+                # Los PDFs se renderizan a escala fija 0.2 (dimensiones ~612pt -> ~122px).
+                # Las imágenes (dimensiones en píxeles crudos) necesitan un factor de
+                # escala dinámico para producir una miniatura de tamaño comparable,
+                # en vez de renderizarse a su resolución nativa (lento y pesado).
+                is_image = not doc.is_pdf
+                target_thumb_width = 130
+
                 batch = []
                 for i in range(total_pages):
                     if not self.is_running:
                         break
                     page = doc.load_page(i)
-                    pix = page.get_pixmap(matrix=fitz.Matrix(0.2, 0.2))
+                    if is_image:
+                        scale = target_thumb_width / page.rect.width
+                        matrix = fitz.Matrix(scale, scale)
+                    else:
+                        matrix = fitz.Matrix(0.2, 0.2)
+                    pix = page.get_pixmap(matrix=matrix)
                     batch.append((pix.tobytes("png"), i + 1))
 
                     if len(batch) >= BATCH_SIZE or i == total_pages - 1:

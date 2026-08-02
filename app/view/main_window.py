@@ -66,7 +66,7 @@ class MainWindow(QMainWindow):
         # --- Barra de Herramientas ---
         toolbar_layout = QHBoxLayout()
         
-        self.btn_add = QPushButton("📂 Agregar PDF(s)")
+        self.btn_add = QPushButton("📂 Agregar Archivos")
         self.btn_add.clicked.connect(self.controller.handle_add_pdf)
         
         self.btn_delete = QPushButton("🗑️ Borrar Seleccionadas")
@@ -149,7 +149,12 @@ class MainWindow(QMainWindow):
 
     # --- Diálogos y Helpers ---
     def show_file_dialog(self):
-        files, _ = QFileDialog.getOpenFileNames(self, "Seleccionar PDFs", "", "PDF Files (*.pdf)")
+        files, _ = QFileDialog.getOpenFileNames(
+            self, "Seleccionar Archivos", "",
+            "Archivos soportados (*.pdf *.jpg *.jpeg *.png *.bmp *.tif *.tiff);;"
+            "PDF (*.pdf);;"
+            "Imágenes (*.jpg *.jpeg *.png *.bmp *.tif *.tiff)"
+        )
         return files
 
     def show_save_dialog(self):
