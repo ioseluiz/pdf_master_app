@@ -1,11 +1,12 @@
-import fitz  # PyMuPDF
 import os
 
-IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff'}
+import pymupdf
 
-# Tamaño de página estándar Carta (Letter), en puntos.
-LETTER_PORTRAIT = (612, 792)
-LETTER_LANDSCAPE = (792, 612)
+from .converters import (  # noqa: F401  (re-export para compatibilidad)
+    IMAGE_EXTENSIONS, WORD_EXTENSIONS, CONVERTIBLE_EXTENSIONS,
+    LETTER_PORTRAIT, LETTER_LANDSCAPE,
+    convert_image_to_pdf_bytes, convert_word_to_pdf_bytes,
+)
 
 
 class PDFModel:
@@ -14,40 +15,41 @@ class PDFModel:
         # 'path' = ruta completa al archivo fuente
         # 'page_src' = índice 0-based de la página dentro del archivo fuente
         self.pages = []
-        self._doc_cache = {}  # filepath -> fitz.Document abierto para renderizado
-        self._image_pdf_bytes = {}  # filepath de imagen -> bytes del PDF de 1 página generado
+        self._doc_cache = {}  # filepath -> pymupdf.Document abierto para renderizado
+        self._converted_pdf_bytes = {}  # filepath (imagen/Word) -> bytes del PDF generado
 
-    def _convert_image_to_pdf_bytes(self, filepath):
-        """Convierte una imagen en un PDF de una página, ajustada a tamaño Carta
-        preservando su proporción (sin recorte ni deformación)."""
-        pix = fitz.Pixmap(filepath)
-        img_w, img_h = pix.width, pix.height
-        pix = None
+    # --- Fuentes convertidas (imágenes, Word) ---
+    def register_converted_pdf(self, filepath, pdf_bytes):
+        """Registra el PDF ya convertido (normalmente por el hilo de carga)."""
+        self._converted_pdf_bytes[filepath] = pdf_bytes
 
-        page_w, page_h = LETTER_LANDSCAPE if img_w > img_h else LETTER_PORTRAIT
-        scale = min(page_w / img_w, page_h / img_h)
-        fit_w, fit_h = img_w * scale, img_h * scale
-        x0, y0 = (page_w - fit_w) / 2, (page_h - fit_h) / 2
-        rect = fitz.Rect(x0, y0, x0 + fit_w, y0 + fit_h)
+    def has_converted_pdf(self, filepath):
+        return filepath in self._converted_pdf_bytes
 
-        doc = fitz.open()
-        page = doc.new_page(width=page_w, height=page_h)
-        page.insert_image(rect, filename=filepath)
-        pdf_bytes = doc.tobytes()
-        doc.close()
-        return pdf_bytes
+    def get_converted_pdf(self, filepath):
+        return self._converted_pdf_bytes.get(filepath)
+
+    def ensure_converted(self, filepath):
+        """Convierte de forma síncrona si hace falta. En la app es siempre un
+        acierto de caché (el worker convierte antes); permite usar el modelo
+        sin Qt en pruebas."""
+        if filepath in self._converted_pdf_bytes:
+            return
+        ext = os.path.splitext(filepath)[1].lower()
+        if ext in IMAGE_EXTENSIONS:
+            self._converted_pdf_bytes[filepath] = convert_image_to_pdf_bytes(filepath)
+        elif ext in WORD_EXTENSIONS:
+            self._converted_pdf_bytes[filepath] = convert_word_to_pdf_bytes(filepath)
 
     def _open_source(self, filepath):
-        """Abre el documento fuente de una página: un PDF real, o el PDF de una
-        sola página generado a partir de una imagen (cacheado en memoria)."""
-        if filepath in self._image_pdf_bytes:
-            return fitz.open(stream=self._image_pdf_bytes[filepath], filetype="pdf")
-        return fitz.open(filepath)
+        """Abre el documento fuente de una página: un PDF real, o el PDF generado
+        a partir de una imagen o documento Word (cacheado en memoria)."""
+        if filepath in self._converted_pdf_bytes:
+            return pymupdf.open(stream=self._converted_pdf_bytes[filepath], filetype="pdf")
+        return pymupdf.open(filepath)
 
     def load_pdf(self, filepath):
-        ext = os.path.splitext(filepath)[1].lower()
-        if ext in IMAGE_EXTENSIONS and filepath not in self._image_pdf_bytes:
-            self._image_pdf_bytes[filepath] = self._convert_image_to_pdf_bytes(filepath)
+        self.ensure_converted(filepath)
 
         doc = self._open_source(filepath)
         name = os.path.basename(filepath)
@@ -70,7 +72,7 @@ class PDFModel:
         entry = self.pages[index]
         doc = self._get_cached_doc(entry['path'])
         page = doc.load_page(entry['page_src'])
-        mat = fitz.Matrix(0.2, 0.2)
+        mat = pymupdf.Matrix(0.2, 0.2)
         if entry['rotation']:
             mat = mat.prerotate(entry['rotation'])
         pix = page.get_pixmap(matrix=mat)
@@ -102,11 +104,11 @@ class PDFModel:
             except Exception:
                 pass
         self._doc_cache.clear()
-        self._image_pdf_bytes.clear()
+        self._converted_pdf_bytes.clear()
         self.pages.clear()
 
     def reorder_and_save(self, new_order_indices, output_path, quality='standard'):
-        new_doc = fitz.open()
+        new_doc = pymupdf.open()
         open_docs = {}
         warning_msg = ""
 

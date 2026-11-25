@@ -14,11 +14,17 @@ a = Analysis(
         'PyQt6.QtGui',
         'PyQt6.QtWidgets',
         'PyQt6.sip',
+        # pywin32 (conversión Word -> PDF vía COM)
+        'win32com.client',
+        'pythoncom',
+        'pywintypes',
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    # Evita que PyInstaller recoja otros bindings Qt presentes en el entorno
+    # (PySide6/PyQt5): no admite dos bindings en el mismo ejecutable.
+    excludes=['PySide6', 'PySide2', 'PyQt5', 'tkinter'],
     noarchive=False,
     optimize=0,
 )

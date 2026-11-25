@@ -1,61 +1,94 @@
 import os
-import fitz  # PyMuPDF
+
+import pymupdf
 from PyQt6.QtCore import QThread, pyqtSignal
+
+from ..model.converters import (
+    IMAGE_EXTENSIONS, WORD_EXTENSIONS,
+    WordConverter, ConversionError, WordNotAvailableError,
+    convert_image_to_pdf_bytes,
+)
 
 BATCH_SIZE = 20  # Páginas por lote emitido
 
 
 class PDFLoaderThread(QThread):
-    """Hilo de carga: emite las páginas en lotes para retroalimentación progresiva."""
-    file_started    = pyqtSignal(str, int, int, int)  # (path, total_pages, file_num, total_files)
-    page_batch_ready = pyqtSignal(str, list, int, int) # (path, batch, pages_done, total_pages)
-    finished_all    = pyqtSignal()
-    error_occurred  = pyqtSignal(str)
+    """Hilo de carga: convierte lo que no sea PDF (imágenes, Word) a bytes PDF,
+    y emite las páginas en lotes para retroalimentación progresiva."""
+    conversion_started = pyqtSignal(str, int, int)             # (path, file_num, total_files)
+    file_started       = pyqtSignal(str, int, int, int, object)  # (path, total_pages, file_num, total_files, pdf_bytes|None)
+    page_batch_ready   = pyqtSignal(str, list, int, int)       # (path, batch, pages_done, total_pages)
+    finished_all       = pyqtSignal()
+    error_occurred     = pyqtSignal(str)
 
-    def __init__(self, file_paths):
+    def __init__(self, file_paths, preconverted=None):
         super().__init__()
         self.file_paths = file_paths
+        self.preconverted = dict(preconverted or {})  # path -> pdf_bytes ya en caché del modelo
         self.is_running = True
 
     def run(self):
         total_files = len(self.file_paths)
-        for file_num, file_path in enumerate(self.file_paths, start=1):
-            if not self.is_running:
-                break
-            try:
-                doc = fitz.open(file_path)
-                total_pages = len(doc)
+        word = None
+        word_unavailable = False
 
-                self.file_started.emit(file_path, total_pages, file_num, total_files)
+        try:
+            for file_num, file_path in enumerate(self.file_paths, start=1):
+                if not self.is_running:
+                    break
+                name = os.path.basename(file_path)
+                ext = os.path.splitext(file_path)[1].lower()
+                pdf_bytes = self.preconverted.get(file_path)
 
-                # Los PDFs se renderizan a escala fija 0.2 (dimensiones ~612pt -> ~122px).
-                # Las imágenes (dimensiones en píxeles crudos) necesitan un factor de
-                # escala dinámico para producir una miniatura de tamaño comparable,
-                # en vez de renderizarse a su resolución nativa (lento y pesado).
-                is_image = not doc.is_pdf
-                target_thumb_width = 130
+                try:
+                    if pdf_bytes is None and ext in WORD_EXTENSIONS:
+                        if word_unavailable:
+                            continue
+                        self.conversion_started.emit(file_path, file_num, total_files)
+                        if word is None:
+                            word = WordConverter().__enter__()
+                        pdf_bytes = word.to_pdf_bytes(file_path)
+                    elif pdf_bytes is None and ext in IMAGE_EXTENSIONS:
+                        pdf_bytes = convert_image_to_pdf_bytes(file_path)
 
-                batch = []
-                for i in range(total_pages):
-                    if not self.is_running:
-                        break
-                    page = doc.load_page(i)
-                    if is_image:
-                        scale = target_thumb_width / page.rect.width
-                        matrix = fitz.Matrix(scale, scale)
+                    if pdf_bytes is not None:
+                        doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
                     else:
-                        matrix = fitz.Matrix(0.2, 0.2)
-                    pix = page.get_pixmap(matrix=matrix)
-                    batch.append((pix.tobytes("png"), i + 1))
+                        doc = pymupdf.open(file_path)
+                    total_pages = len(doc)
 
-                    if len(batch) >= BATCH_SIZE or i == total_pages - 1:
-                        self.page_batch_ready.emit(file_path, batch[:], i + 1, total_pages)
-                        batch = []
+                    self.file_started.emit(file_path, total_pages, file_num, total_files, pdf_bytes)
 
-                doc.close()
+                    # Todas las fuentes ya son PDF (las imágenes/Word fueron
+                    # convertidas a páginas Carta), así que una escala fija basta.
+                    matrix = pymupdf.Matrix(0.2, 0.2)
+                    batch = []
+                    for i in range(total_pages):
+                        if not self.is_running:
+                            break
+                        page = doc.load_page(i)
+                        pix = page.get_pixmap(matrix=matrix)
+                        batch.append((pix.tobytes("png"), i + 1))
 
-            except Exception as e:
-                self.error_occurred.emit(f"Error en {os.path.basename(file_path)}: {e}")
+                        if len(batch) >= BATCH_SIZE or i == total_pages - 1:
+                            self.page_batch_ready.emit(file_path, batch[:], i + 1, total_pages)
+                            batch = []
+
+                    doc.close()
+
+                except WordNotAvailableError as e:
+                    word_unavailable = True
+                    self.error_occurred.emit(str(e))
+                except ConversionError as e:
+                    self.error_occurred.emit(str(e))
+                except Exception as e:
+                    self.error_occurred.emit(f"Error en {name}: {e}")
+        finally:
+            if word is not None:
+                try:
+                    word.__exit__(None, None, None)
+                except Exception:
+                    pass
 
         self.finished_all.emit()
 

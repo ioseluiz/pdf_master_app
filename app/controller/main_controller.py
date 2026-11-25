@@ -2,10 +2,10 @@ import os
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QApplication
 from .workers import PDFLoaderThread, PDFSaverThread
-from ..model.pdf_manager import IMAGE_EXTENSIONS
+from ..model.converters import IMAGE_EXTENSIONS, WORD_EXTENSIONS
 
 ITEMS_PER_FLUSH = 5   # Items del widget creados por tick del timer (~30fps)
-SUPPORTED_EXTENSIONS = {'.pdf'} | IMAGE_EXTENSIONS
+SUPPORTED_EXTENSIONS = {'.pdf'} | IMAGE_EXTENSIONS | WORD_EXTENSIONS
 
 
 class MainController:
@@ -54,7 +54,13 @@ class MainController:
         self._progress_state = None
         self._loading_finished = False
 
-        self.loader_thread = PDFLoaderThread(file_list)
+        # Archivos ya convertidos (imagen/Word) en una carga anterior: no relanzar Word.
+        preconverted = {
+            p: self.model.get_converted_pdf(p)
+            for p in file_list if self.model.has_converted_pdf(p)
+        }
+        self.loader_thread = PDFLoaderThread(file_list, preconverted)
+        self.loader_thread.conversion_started.connect(self.on_conversion_started)
         self.loader_thread.file_started.connect(self.on_file_started)
         self.loader_thread.page_batch_ready.connect(self.on_page_batch_ready)
         self.loader_thread.finished_all.connect(self.on_loading_finished)
@@ -64,9 +70,21 @@ class MainController:
         self.loader_thread.start()
         self._flush_timer.start()
 
-    def on_file_started(self, file_path, total_pages, file_num, total_files):
+    def on_conversion_started(self, file_path, file_num, total_files):
+        """Un documento Word está siendo convertido: barra indeterminada."""
+        # Anular el estado previo: si no, _flush_page_queue lo re-aplica en 33 ms
+        # y pisa la barra indeterminada con el progreso del archivo anterior.
+        self._progress_state = None
+        filename = os.path.basename(file_path)
+        self.view.show_progress_busy(
+            f"Archivo {file_num}/{total_files}: {filename} — convirtiendo documento Word…"
+        )
+
+    def on_file_started(self, file_path, total_pages, file_num, total_files, pdf_bytes=None):
         """Registra metadatos del archivo y muestra el progreso inicial."""
         try:
+            if pdf_bytes is not None:
+                self.model.register_converted_pdf(file_path, pdf_bytes)
             self._loading_base_index[file_path] = self.model.get_page_count()
             self.model.load_pdf(file_path)
         except Exception as e:

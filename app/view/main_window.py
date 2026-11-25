@@ -4,6 +4,11 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
 from PyQt6.QtCore import Qt, QTimer
 from .styles import DARK_THEME
 from .custom_widgets import DraggableListWidget
+from ..model.converters import IMAGE_EXTENSIONS, WORD_EXTENSIONS
+
+
+def _glob(exts):
+    return " ".join("*" + e for e in sorted(exts))
 
 class MainWindow(QMainWindow):
     def __init__(self, controller):
@@ -149,11 +154,13 @@ class MainWindow(QMainWindow):
 
     # --- Diálogos y Helpers ---
     def show_file_dialog(self):
+        all_exts = {'.pdf'} | WORD_EXTENSIONS | IMAGE_EXTENSIONS
         files, _ = QFileDialog.getOpenFileNames(
             self, "Seleccionar Archivos", "",
-            "Archivos soportados (*.pdf *.jpg *.jpeg *.png *.bmp *.tif *.tiff);;"
+            f"Archivos soportados ({_glob(all_exts)});;"
             "PDF (*.pdf);;"
-            "Imágenes (*.jpg *.jpeg *.png *.bmp *.tif *.tiff)"
+            f"Documentos Word ({_glob(WORD_EXTENSIONS)});;"
+            f"Imágenes ({_glob(IMAGE_EXTENSIONS)})"
         )
         return files
 
@@ -199,6 +206,10 @@ class MainWindow(QMainWindow):
         self.progress_bar.setValue(value)
         self.progress_label.setText(label)
         self.progress_widget.setVisible(True)
+
+    def show_progress_busy(self, label=""):
+        """Barra indeterminada (rango 0..0) para pasos sin progreso medible."""
+        self.show_progress(0, 0, label)
 
     def show_progress_complete(self):
         self.progress_bar.setValue(self.progress_bar.maximum())
