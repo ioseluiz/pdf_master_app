@@ -281,6 +281,9 @@ class WordConverter:
 
     # --- conversión ---
     def to_pdf_bytes(self, src_path):
+        # Qt entrega rutas con barras normales (T:/carpeta/doc.docx); Word COM
+        # las rechaza con "Command failed", sobre todo en unidades de red.
+        src_path = os.path.normpath(src_path)
         name = os.path.basename(src_path)
         if not os.path.isfile(src_path):
             raise ConversionError(f"No se encontró el archivo {name}.")

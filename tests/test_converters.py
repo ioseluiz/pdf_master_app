@@ -92,3 +92,11 @@ def test_docx_reuses_single_word_instance(tmp_docx):
         first = wc._word
         wc.to_pdf_bytes(tmp_docx)
         assert wc._word is first
+
+
+@requires_word
+def test_docx_forward_slash_path(tmp_docx):
+    """Qt entrega rutas con '/', que Word COM rechaza si no se normalizan."""
+    with WordConverter() as wc:
+        data = wc.to_pdf_bytes(tmp_docx.replace("\\", "/"))
+    assert data.startswith(b"%PDF")
